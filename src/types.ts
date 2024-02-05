@@ -10,14 +10,11 @@ export type LocaleUtils = {
 export type MatchByStemParams = {
 	keywords: string[]
 	localeUtils: LocaleUtils
-	transforms: Transforms
 }
+export type MatchByStemAsyncParams = Expand<{ locale: Intl.Locale } & Omit<MatchByStemParams, 'localeUtils'>>
+export type WrapByStemParams = Expand<{ transforms: Transforms } & MatchByStemParams>
+export type WrapByStemAsyncParams = Expand<{ transforms: Transforms } & MatchByStemAsyncParams>
 
-export type MatchByStemAsyncParams = Expand<
-	{
-		locale: Intl.Locale
-	} & Omit<MatchByStemParams, 'localeUtils'>
->
 // https://stackoverflow.com/questions/57683303/how-can-i-see-the-full-expanded-contract-of-a-typescript-type
 export type Expand<T> = T extends infer O ? { [K in keyof O]: O[K] } : never
 
@@ -48,3 +45,19 @@ export type Transforms = {
 	startTag: string | Transform
 	endTag: string | Transform
 }
+
+type FencePostMatchToken = {
+	kind: 'start' | 'end'
+	start: number
+	end: number
+	exact: string
+	matched: string
+	count: number
+}
+
+type ContentMatchToken = {
+	kind: 'content'
+	text: string
+}
+
+export type MatchToken = FencePostMatchToken | ContentMatchToken

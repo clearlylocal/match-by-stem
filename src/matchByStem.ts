@@ -1,4 +1,4 @@
-import { getStemmerByLocale, type Stemmer } from './deps.ts'
+import { getStemmerByLocale, type Stemmer, unreachable } from './deps.ts'
 import { highFreqWords } from './highFreqWords.ts'
 import type {
 	_MatchInfo,
@@ -7,8 +7,11 @@ import type {
 	MatchByStemAsyncParams,
 	MatchByStemParams,
 	PartialMatch,
+	WrapByStemAsyncParams,
+	WrapByStemParams,
 } from './types.ts'
 import { wrapTransforms } from './_wrapTransforms.ts'
+import { MatchToken } from './types.ts'
 
 const PHRASE_DELIMITER_RE = /[\r\n.,:;。，、：；()\[\]（）【】]/u
 
@@ -33,13 +36,40 @@ async function getLocaleUtils(locale: Intl.Locale): Promise<LocaleUtils> {
 	return { locale, stemmer, segment }
 }
 
+export async function createWrapperAsync({ locale, ...params }: WrapByStemAsyncParams) {
+	return createWrapper({ ...params, localeUtils: await getLocaleUtils(locale) })
+}
+
 export async function createMatcherAsync({ locale, ...params }: MatchByStemAsyncParams) {
 	return createMatcher({ ...params, localeUtils: await getLocaleUtils(locale) })
 }
 
-export function createMatcher({ keywords, localeUtils, transforms }: MatchByStemParams) {
-	const { locale } = localeUtils
+export function createWrapper({ keywords, localeUtils, transforms }: WrapByStemParams) {
 	const fns = wrapTransforms(transforms)
+
+	const matcher = createMatcher({ keywords, localeUtils })
+
+	return (text: string) =>
+		matcher(text)
+			.map((x) => {
+				switch (x.kind) {
+					case 'content': {
+						return fns.content(x.text)
+					}
+					case 'start':
+					case 'end': {
+						return fns[`${x.kind}Tag`](x)
+					}
+					default: {
+						unreachable()
+					}
+				}
+			})
+			.join('')
+}
+
+export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
+	const { locale } = localeUtils
 
 	const nonStopWords = new Set(keywords.flatMap((x) => {
 		const wordSegs = [...localeUtils.segment(x, 'word')]
@@ -56,12 +86,12 @@ export function createMatcher({ keywords, localeUtils, transforms }: MatchByStem
 	return (text: string) => {
 		const inputTextStems = getStemData(text /* .replaceAll(/\n{3,}/g, '\n\n') */).stems
 
-		const out: (string | string[])[] = []
+		const tokens: (string | MatchToken[])[] = []
 		const partialMatches: PartialMatch[] = []
 		const matches: _MatchInfo[] = []
 
 		outerLoop: for (const [inputIdx, { segment, stem }] of inputTextStems.entries()) {
-			out.push(segment)
+			tokens.push(segment)
 
 			// ignore stop-words and non-words
 			if (!stem) continue outerLoop
@@ -152,7 +182,7 @@ export function createMatcher({ keywords, localeUtils, transforms }: MatchByStem
 			const m = matches.pop()!
 			const { start, end, matched } = m
 
-			if (out.slice(start, end + 1).some((x) => typeof x !== 'string')) {
+			if (tokens.slice(start, end + 1).some((x) => Array.isArray(x))) {
 				// overlaps existing
 				continue
 			}
@@ -160,27 +190,31 @@ export function createMatcher({ keywords, localeUtils, transforms }: MatchByStem
 			const count = counts.get(matched) ?? 0
 			// if (numInstances) continue
 
-			const s = out[start] as string
-			const e = out[end] as string
+			const s = tokens[start] as string
+			const e = tokens[end] as string
 
 			if (start === end) {
-				out[start] = [fns.startTag({ ...m, count }), fns.content(s), fns.endTag({ ...m, count })]
+				tokens[start] = [{ kind: 'start', ...m, count }, { kind: 'content', text: s }, {
+					kind: 'end',
+					...m,
+					count,
+				}]
 			} else {
-				out[start] = [fns.startTag({ ...m, count }), fns.content(s)]
-				out[end] = [fns.content(e), fns.endTag({ ...m, count })]
+				tokens[start] = [{ kind: 'start', ...m, count }, { kind: 'content', text: s }]
+				tokens[end] = [{ kind: 'content', text: e }, { kind: 'end', ...m, count }]
 			}
 
 			counts.set(matched, count + 1)
 		}
 
-		for (const idx of out.keys()) {
-			const text = out[idx]
+		for (const idx of tokens.keys()) {
+			const text = tokens[idx]
 			if (typeof text === 'string') {
-				out[idx] = [fns.content(text)]
+				tokens[idx] = [{ kind: 'content', text }]
 			}
 		}
 
-		return out.flat().join('')
+		return tokens.flat().map((x) => typeof x === 'string' ? { kind: 'content' as const, text: x } : x)
 	}
 }
 

@@ -1,9 +1,22 @@
-import { assertEquals, assertStringIncludes, bgCyan, cyan } from '../src/dev_deps.ts'
+import { assertEquals, assertStringIncludes, bgCyan, cyan } from '../src/devDeps.ts'
 import { htmlTransforms } from '../src/htmlTransforms.ts'
-import { createMatcher, createMatcherAsync } from '../src/matchByStem.ts'
-import { wrappersToTransforms } from '../src/wrapperToTransforms.ts'
+import { createWrapperAsync } from '../src/matchByStem.ts'
+import type { Transform, Transforms } from '../src/types.ts'
 
-Deno.test(createMatcher.name, async (t) => {
+function wrappersToTransforms(
+	wrapper: (text: string) => string,
+	wrapper2?: (text: string) => string,
+): Transforms {
+	const [s1, e1] = wrapper('\0').split('\0')
+	const [s2, e2] = wrapper2 ? wrapper2('\0').split('\0') : [s1, e1]
+
+	const startTag: Transform = ({ count }) => count ? s2 : s1
+	const endTag: Transform = ({ count }) => count ? e2 : e1
+
+	return { startTag, endTag }
+}
+
+Deno.test(createWrapperAsync.name, async (t) => {
 	const transforms = wrappersToTransforms((x) => `[${x}]`)
 
 	await t.step('breaks', async (t) => {
@@ -21,7 +34,7 @@ Deno.test(createMatcher.name, async (t) => {
 
 			for (const [name, literal] of Object.entries(seps)) {
 				const keywords = ['one two three']
-				const match = await createMatcherAsync({ keywords, locale, transforms })
+				const match = await createWrapperAsync({ keywords, locale, transforms })
 
 				await t.step(`should not break on ${name}`, () => {
 					const text = `one${literal}two three`
@@ -43,7 +56,7 @@ Deno.test(createMatcher.name, async (t) => {
 
 			for (const [name, literal] of Object.entries(seps)) {
 				const keywords = ['one two three']
-				const match = await createMatcherAsync({ keywords, locale, transforms })
+				const match = await createWrapperAsync({ keywords, locale, transforms })
 
 				await t.step(`should break on ${name}`, () => {
 					const text = `one${literal}two three`
@@ -63,7 +76,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['one two three']
 			const text = `three two one\ntwo three one\nOne two Three`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `{three two one}\n{two three one}\n[[One two Three]]`)
 		})
@@ -86,7 +99,7 @@ Deno.test(createMatcher.name, async (t) => {
 				const text =
 					`The plastic c channel is a versatile product composed of a range of materials, most commonly polyvinyl chloride, or PVC. This gives rise to the term PVC C channel, a term that signifies a c channel that is thicker and more durable due to its PVC composition. However, the clear plastic c channel isn't limited to PVC. There are other variations made from galvanized steel or other steel types. These versions have varying thicknesses, typically sized to accommodate cables ranging from 240V to 440V.`
 
-				const match = await createMatcherAsync({ keywords, locale, transforms })
+				const match = await createWrapperAsync({ keywords, locale, transforms })
 				const out = match(text)
 				assertEquals(
 					out,
@@ -99,7 +112,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['hair color wax for black hair', 'hair color wax for natural hair']
 			const text = `For instance, hair color wax for black hair or hair color wax for natural hair`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `For instance, [hair color wax for black hair] or [hair color wax for natural hair]`)
 		})
@@ -109,7 +122,7 @@ Deno.test(createMatcher.name, async (t) => {
 				const keywords = ['A Frame']
 				const text = `This is an A Frame`
 
-				const match = await createMatcherAsync({ keywords, locale, transforms })
+				const match = await createWrapperAsync({ keywords, locale, transforms })
 				const out = match(text)
 				assertEquals(out, `This is an [A Frame]`)
 			})
@@ -117,7 +130,7 @@ Deno.test(createMatcher.name, async (t) => {
 				const keywords = ['Frame A']
 				const text = `This is Frame A`
 
-				const match = await createMatcherAsync({ keywords, locale, transforms })
+				const match = await createWrapperAsync({ keywords, locale, transforms })
 				const out = match(text)
 				assertEquals(out, `This is [Frame A]`)
 			})
@@ -130,7 +143,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['hello', 'world']
 			const text = `Hello, world!`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `[Hello], [world]!`)
 		})
@@ -140,7 +153,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['hello world']
 			const text = `Hello world!`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `[Hello world]!`)
 		})
@@ -152,7 +165,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['hello world', 'English words']
 			const text = `abc hello worlds english word`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `abc [hello worlds] [english word]`)
 		})
@@ -162,7 +175,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['el nino']
 			const text = `el niño`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `[el niño]`)
 		})
@@ -172,7 +185,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['собака']
 			const text = `собака собаки собак`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `[собака] [собаки] [собак]`)
 		})
@@ -183,7 +196,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['中华', '共和国']
 			const text = `中华人民共和国`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `【中华】人民【共和国】`)
 		})
@@ -194,7 +207,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const keywords = ['ภาษา']
 			const text = `Snowball เป็นภาษาประมวลผลสตริงขนาดเล็กสำหรับการสร้างอัลกอริธึมการกั้น`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(out, `Snowball เป็น【ภาษา】ประมวลผลสตริงขนาดเล็กสำหรับการสร้างอัลกอริธึมการกั้น`)
 		})
@@ -205,7 +218,7 @@ Deno.test(createMatcher.name, async (t) => {
 			const text =
 				`Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.`
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertEquals(
 				out,
@@ -230,7 +243,7 @@ El lenguaje humano se apoya en la capacidad de comunicarse por medio de signos l
 			const endTag = ']'
 			const transforms = { startTag, endTag }
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertStringIncludes(out, '[Desde el punto de vista]')
 			assertStringIncludes(out, '[un punto de vista más amplio]')
@@ -246,7 +259,7 @@ El lenguaje humano se apoya en la capacidad de comunicarse por medio de signos l
 				}),
 			)
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 			assertStringIncludes(
 				out,
@@ -265,7 +278,7 @@ El lenguaje humano se apoya en la capacidad de comunicarse por medio de signos l
 		await t.step('color', async () => {
 			const transforms = wrappersToTransforms(bgCyan, cyan)
 
-			const match = await createMatcherAsync({ keywords, locale, transforms })
+			const match = await createWrapperAsync({ keywords, locale, transforms })
 			const out = match(text)
 
 			try {
