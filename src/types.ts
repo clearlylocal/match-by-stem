@@ -38,6 +38,12 @@ export type _MatchInfo = { start: number; end: number; exact: string; matched: s
  */
 export type MatchInfo = Expand<_MatchInfo & { count: number }>
 
+export type MatcherOptions = {
+	/** pass a Map to track `counts` statefully (preserving counts between function calls) */
+	counts: Map<string, number>
+}
+export type WrapperOptions = Expand<MatcherOptions>
+
 export type Transform = (matchInfo: MatchInfo) => string
 
 export type Transforms = {

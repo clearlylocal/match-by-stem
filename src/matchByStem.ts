@@ -6,9 +6,11 @@ import type {
 	LocaleUtils,
 	MatchByStemAsyncParams,
 	MatchByStemParams,
+	MatcherOptions,
 	PartialMatch,
 	WrapByStemAsyncParams,
 	WrapByStemParams,
+	WrapperOptions,
 } from './types.ts'
 import { wrapTransforms } from './_wrapTransforms.ts'
 import { MatchToken } from './types.ts'
@@ -49,8 +51,8 @@ export function createWrapper({ keywords, localeUtils, transforms }: WrapByStemP
 
 	const matcher = createMatcher({ keywords, localeUtils })
 
-	return (text: string) =>
-		matcher(text)
+	return (text: string, options: Partial<WrapperOptions> = {}) =>
+		matcher(text, options)
 			.map((x) => {
 				switch (x.kind) {
 					case 'content': {
@@ -83,7 +85,7 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 
 	const kwdStemData = keywords.map(getStemData)
 
-	return (text: string) => {
+	return (text: string, { counts: statefulCounts }: Partial<MatcherOptions> = {}) => {
 		const inputTextStems = getStemData(text /* .replaceAll(/\n{3,}/g, '\n\n') */).stems
 
 		const tokens: (string | MatchToken[])[] = []
@@ -164,7 +166,7 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 			}
 		} // </outerLoop>
 
-		const counts = new Map<string, number>()
+		const counts = statefulCounts ?? new Map<string, number>()
 
 		const sorters: ((x: _MatchInfo) => number)[] = [
 			// already-matched gets lowest priority
