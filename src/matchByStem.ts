@@ -167,14 +167,20 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 		const counts = new Map<string, number>()
 
 		const sorters: ((x: _MatchInfo) => number)[] = [
+			// already-matched gets lowest priority
 			(x) => (counts.get(x.matched) ?? 0),
-			(x) => -Number(normalizeSubtle(x.exact, locale) === normalizeSubtle(x.matched, locale)),
-			(x) => x.start,
+			// longer matches get higher priority
 			(x) => -[...x.matched].length,
+			// exact-ish matches get higher priority
+			(x) => -Number(normalizeSubtle(x.exact, locale) === normalizeSubtle(x.matched, locale)),
+			// earlier matches get higher priority
+			(x) => x.start,
 		]
 
 		const sortReverse = (a: _MatchInfo, b: _MatchInfo) =>
 			sorters.reduce((acc, sorter) => acc || sorter(b) - sorter(a), 0)
+
+		const touchedTokenIndexes = tokens.map(() => false)
 
 		while (matches.length) {
 			// sort reversed in-place and `pop` from end (better perf than `shift`)
@@ -182,13 +188,15 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 			const m = matches.pop()!
 			const { start, end, matched } = m
 
-			if (tokens.slice(start, end + 1).some((x) => Array.isArray(x))) {
+			if (touchedTokenIndexes.slice(start, end + 1).some(Boolean)) {
 				// overlaps existing
 				continue
 			}
+			for (let i = start; i <= end; ++i) {
+				touchedTokenIndexes[i] = true
+			}
 
 			const count = counts.get(matched) ?? 0
-			// if (numInstances) continue
 
 			const s = tokens[start] as string
 			const e = tokens[end] as string
@@ -207,8 +215,7 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 			counts.set(matched, count + 1)
 		}
 
-		for (const idx of tokens.keys()) {
-			const text = tokens[idx]
+		for (const [idx, text] of tokens.entries()) {
 			if (typeof text === 'string') {
 				tokens[idx] = [{ kind: 'content', text }]
 			}
