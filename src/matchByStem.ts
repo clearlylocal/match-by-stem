@@ -85,7 +85,7 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 
 	const kwdStemData = keywords.map(getStemData)
 
-	return (text: string, { counts: statefulCounts }: Partial<MatcherOptions> = {}) => {
+	return (text: string, { counts: statefulCounts, sorters: customSorters }: Partial<MatcherOptions> = {}) => {
 		const inputTextStems = getStemData(text /* .replaceAll(/\n{3,}/g, '\n\n') */).stems
 
 		const tokens: (string | MatchToken[])[] = []
@@ -168,13 +168,13 @@ export function createMatcher({ keywords, localeUtils }: MatchByStemParams) {
 
 		const counts = statefulCounts ?? new Map<string, number>()
 
-		const sorters: ((x: _MatchInfo) => number)[] = [
+		const sorters = customSorters ?? [
 			// already-matched gets lowest priority
 			(x) => (counts.get(x.matched) ?? 0),
-			// longer matches get higher priority
-			(x) => -[...x.matched].length,
 			// exact-ish matches get higher priority
 			(x) => -Number(normalizeSubtle(x.exact, locale) === normalizeSubtle(x.matched, locale)),
+			// longer matches get higher priority
+			(x) => -[...x.matched].length,
 			// earlier matches get higher priority
 			(x) => x.start,
 		]

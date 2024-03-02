@@ -41,6 +41,8 @@ export type MatchInfo = Expand<_MatchInfo & { count: number }>
 export type MatcherOptions = {
 	/** pass a Map to track `counts` statefully (preserving counts between function calls) */
 	counts: Map<string, number>
+	/** custom sorters for prioritizing matches */
+	sorters: ((x: Omit<MatchInfo, 'count'>) => number)[]
 }
 export type WrapperOptions = Expand<MatcherOptions>
 
